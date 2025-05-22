@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>構成品集計ツール（CSV出力対応）</title>
+</head>
+<body>
+  <h2>構成品集計ツール</h2>
+
+  <input type="file" id="csvFile" accept=".csv">
+  <button onclick="loadCSV()">CSV読み込み</button>
+
+  <h3>製品ごとの生産数入力</h3>
+  <div id="productInputs" style="margin-bottom: 20px;"></div>
+  <button onclick="simulateProduction()">計算</button>
+  <button onclick="downloadCSV()">CSV出力</button>
+
+  <h3>構成品集計結果</h3>
+  <div id="result" style="white-space: pre-wrap; background: #f0f0f0; padding: 10px;"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/1.0.30/encoding.min.js"></script>
+  <script>
+    let rawData = [];
+    let productSet = new Set();
+    let lastResult = []; // ← ここに構成品集計保持
+
+    function loadCSV() {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) {
+        alert("CSVファイルを選んでね♡");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const buffer = new Uint8Array(e.target.result);
+        const encoding = Encoding.detect(buffer);
+        const text = Encoding.convert(buffer, {
+          to: 'UNICODE',
+          from: encoding,
+          type: 'string'
+        });
+        parseCSV(text);
+        showProductInputs();
+        alert("CSVを読み込みました！");
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function parseCSV(text) {
+      const lines = text.trim().split('\n');
+      lines.shift();
+      rawData = [];
+      productSet.clear();
+
+      lines.forEach(line => {
+        const [productField, part, partQty, unitPrice, status] = line.split(',').map(s => s.trim());
+        const products = productField.split('/');
+
+        products.forEach(p => {
+          const match = p.match(/^(.+?)\((\d+)\)$/);
+          if (!match) return;
+
+          const name = match[1];
+          const qty = parseInt(match[2]);
+          rawData.push({
+            product: name,
+            productQty: qty,
+            part: part,
+            partQty: parseInt(partQty),
+            price: parseFloat(unitPrice),
+            status: status
+          });
+
+          productSet.add(name);
+        });
+      });
+    }
+
+    function showProductInputs() {
+      const container = document.getElementById("productInputs");
+      container.innerHTML = '';
+
+      [...productSet].forEach(name => {
+        const label = document.createElement("label");
+        label.textContent = `${name}：`;
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "0";
+        input.value = "0";
+        input.id = `count-${name}`;
+        input.style.marginRight = "10px";
+        container.appendChild(label);
+        container.appendChild(input);
+        container.appendChild(document.createElement("br"));
+      });
+    }
+
+    function simulateProduction() {
+      const plan = {};
+      [...productSet].forEach(name => {
+        const count = parseInt(document.getElementById(`count-${name}`).value);
+        if (!isNaN(count) && count > 0) {
+          plan[name] = count;
+        }
+      });
+
+      const partsMap = new Map();
+      lastResult = []; // ← 初期化
+
+      rawData.forEach(row => {
+        if (!(row.product in plan)) return;
+
+        const productionCount = plan[row.product];
+        const totalPartQty = row.partQty * row.productQty * productionCount;
+
+        if (!partsMap.has(row.part)) {
+          partsMap.set(row.part, {
+            qty: 0,
+            price: row.price,
+            status: row.status
+          });
+        }
+
+        const entry = partsMap.get(row.part);
+        entry.qty += totalPartQty;
+      });
+
+      let totalAll = 0;
+      let totalActive = 0;
+      let output = '';
+      let hasEnded = false;
+
+      partsMap.forEach((val, key) => {
+        const subtotal = val.qty * val.price;
+        totalAll += subtotal;
+        if (val.status !== '生産終了') totalActive += subtotal;
+        if (val.status === '生産終了') hasEnded = true;
+
+        lastResult.push({
+          part: key,
+          qty: val.qty,
+          price: val.price,
+          subtotal: subtotal,
+          status: val.status
+        });
+
+        output += `${key}：${val.qty}個 × ${val.price}円 = ${subtotal.toLocaleString()}円 （${val.status}）\n`;
+      });
+
+      output += `\nすべての構成品 合計金額：${totalAll.toLocaleString()}円\n`;
+      if (hasEnded) {
+        output += `生産中のみの合計金額：${totalActive.toLocaleString()}円\n`;
+        output += `⚠️ 生産終了品目が含まれています\n`;
+      }
+
+      document.getElementById("result").textContent = output;
+    }
+
+    function downloadCSV() {
+      if (lastResult.length === 0) {
+        alert("先に計算してね♡");
+        return;
+      }
+
+      let csv = '構成品名,構成品個数,単価,小計\n';
+      let total = 0;
+      lastResult.forEach(row => {
+        csv += `${row.part},${row.qty},${row.price},${row.subtotal}\n`;
+        total += row.subtotal;
+      });
+      csv += `合算,,,"${total}"\n`;
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '構成品集計結果.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
