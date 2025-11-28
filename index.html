@@ -1,3 +1,109 @@
+
+<!--
+
+
+(() => {
+  const fields = document.querySelectorAll(
+    '#userInfo input, #settings input, #otherInfo input'
+  );
+
+  const result = {};
+
+  fields.forEach(el => {
+    result[el.name || el.id] = el.value;
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+})();
+
+
+
+
+
+
+(() => {
+  const fields = document.querySelectorAll(
+    'input[type="text"], input[type="number"], input[type="checkbox"]'
+  );
+
+  const data = {};
+
+  fields.forEach(el => {
+    const key = el.name || el.id;
+    if (!key) return;
+
+    data[key] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+
+  console.log(JSON.stringify(data, null, 2));
+})();
+
+
+
+
+
+
+
+
+(() => {
+  const selectors = ['.blockA', '.blockB', '.blockC'];
+
+  const result = {};
+
+  selectors.forEach(sel => {
+    const section = document.querySelector(sel);
+    if (!section) return;
+
+    const fields = section.querySelectorAll('input, textarea, select');
+    const data = {};
+
+    fields.forEach(el => {
+      const key = el.name || el.id || el.type + '_' + Math.random().toString(36).slice(2);
+      let val;
+
+      if (el.type === 'checkbox') {
+        val = el.checked;
+      } else if (el.type === 'radio') {
+        if (el.checked) val = el.value;
+      } else {
+        val = el.value;
+      }
+
+      if (val !== undefined) data[key] = val;
+    });
+
+    result[sel] = data;
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-->
+
+
+
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
